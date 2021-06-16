@@ -10,27 +10,13 @@ use defmt_rtt as _;
 use panic_probe as _;
 
 use embassy::executor::Spawner;
-use embassy_microbit::display;
-use embassy_microbit::display::Display;
 use embassy_nrf::interrupt;
-use embassy_nrf::Peripherals;
 
 #[embassy::main]
-async fn main(spawner: Spawner, peripherals: Peripherals) {
-    let pins = display::Pins {
-        row1: peripherals.P0_21,
-        row2: peripherals.P0_22,
-        row3: peripherals.P0_15,
-        row4: peripherals.P0_24,
-        row5: peripherals.P0_19,
-        col1: peripherals.P0_28,
-        col2: peripherals.P0_11,
-        col3: peripherals.P0_31,
-        col4: peripherals.P1_05,
-        col5: peripherals.P0_30,
-    };
+async fn main(spawner: Spawner, peripherals: embassy_nrf::Peripherals) {
+    let peripherals = embassy_microbit::Peripherals::new(peripherals, &spawner).unwrap();
 
-    let display = Display::new(pins, &spawner).unwrap();
+    let display = peripherals.display;
 
     let image = [
         [10, 20, 30, 40, 50],

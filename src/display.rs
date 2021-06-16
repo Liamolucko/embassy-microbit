@@ -56,6 +56,7 @@ async fn render(
             // These are infallible, `embedded-hal` just has them return errors in case there's a board out there with fallible pins.
             row_pin.set_high().unwrap();
 
+            // Turn the whole row on, except the ones with brightness 0.
             for (col_pin, brightness) in cols.iter_mut().zip(row.iter()) {
                 if *brightness > 0 {
                     // The column pins are active low.

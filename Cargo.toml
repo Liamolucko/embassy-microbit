@@ -1,0 +1,31 @@
+[package]
+name = "embassy-microbit"
+version = "0.1.0"
+authors = ["Liam Murphy <liampm32@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+defmt = "0.2.0"
+defmt-rtt = "0.2.0"
+panic-probe = "0.2.0"
+embedded-hal = "0.2.4"
+
+[dependencies.embassy]
+git = "https://github.com/embassy-rs/embassy.git"
+rev = "927be5010926f5ce1f81bd2cec75b1e8883be377"
+
+[dependencies.embassy-nrf]
+git = "https://github.com/embassy-rs/embassy.git"
+rev = "927be5010926f5ce1f81bd2cec75b1e8883be377"
+features = ["nrf52833"]
+
+[features]
+# set logging levels here
+default = ["defmt-default"]
+# do NOT modify these features
+defmt-default = []
+defmt-trace = []
+defmt-debug = []
+defmt-info = []
+defmt-warn = []
+defmt-error = []

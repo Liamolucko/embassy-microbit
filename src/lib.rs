@@ -3,14 +3,21 @@
 #![feature(type_alias_impl_trait)]
 #![feature(impl_trait_in_bindings)]
 
-use display::Display;
 use embassy::executor::SpawnError;
 use embassy::executor::Spawner;
+use embassy_nrf::peripherals::P0_14;
+use embassy_nrf::peripherals::P0_23;
 
+pub mod button;
 pub mod display;
+
+pub use button::Button;
+pub use display::Display;
 
 pub struct Peripherals {
     pub display: Display,
+    pub button_a: Button<P0_14>,
+    pub button_b: Button<P0_23>,
 }
 
 impl Peripherals {
@@ -33,6 +40,8 @@ impl Peripherals {
 
         Ok(Self {
             display: Display::new(pins, &spawner)?,
+            button_a: Button::new(peripherals.P0_14),
+            button_b: Button::new(peripherals.P0_23),
         })
     }
 }

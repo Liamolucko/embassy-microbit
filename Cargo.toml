@@ -30,3 +30,6 @@ defmt-debug = []
 defmt-info = []
 defmt-warn = []
 defmt-error = []
+
+[profile.release]
+debug = 2 # defmt needs debug info to show line numbers

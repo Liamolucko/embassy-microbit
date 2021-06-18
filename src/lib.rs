@@ -5,19 +5,29 @@
 
 use embassy::executor::SpawnError;
 use embassy::executor::Spawner;
+use embassy_nrf::gpio::NoPin;
+use embassy_nrf::interrupt;
 use embassy_nrf::peripherals::P0_14;
 use embassy_nrf::peripherals::P0_23;
+
+pub use embassy_nrf::Peripherals as RawPeripherals;
 
 pub mod button;
 pub mod display;
 
 pub use button::Button;
 pub use display::Display;
+use embassy_nrf::peripherals::UARTE0;
+use embassy_nrf::uarte;
+use embassy_nrf::uarte::Baudrate;
+use embassy_nrf::uarte::Parity;
+use embassy_nrf::uarte::Uarte;
 
 pub struct Peripherals {
     pub display: Display,
     pub button_a: Button<P0_14>,
     pub button_b: Button<P0_23>,
+    pub uart: Uarte<'static, UARTE0>,
 }
 
 impl Peripherals {
@@ -42,6 +52,20 @@ impl Peripherals {
             display: Display::new(pins, &spawner)?,
             button_a: Button::new(peripherals.P0_14),
             button_b: Button::new(peripherals.P0_23),
+            uart: unsafe {
+                let mut config = uarte::Config::default();
+                config.baudrate = Baudrate::BAUD115200;
+                config.parity = Parity::EXCLUDED;
+                Uarte::new(
+                    peripherals.UARTE0,
+                    interrupt::take!(UARTE0_UART0),
+                    peripherals.P1_08,
+                    peripherals.P0_06,
+                    NoPin,
+                    NoPin,
+                    config,
+                )
+            },
         })
     }
 }

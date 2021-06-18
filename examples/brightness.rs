@@ -4,17 +4,19 @@
 #![feature(type_alias_impl_trait)]
 #![feature(impl_trait_in_bindings)]
 
-use defmt_rtt as _;
-use panic_probe as _;
+extern crate defmt_rtt;
+extern crate panic_probe;
 
 use core::mem;
 
 use embassy::executor::Spawner;
 use embassy_microbit::display::Image;
+use embassy_microbit::Peripherals;
+use embassy_microbit::RawPeripherals;
 
 #[embassy::main]
-async fn main(spawner: Spawner, peripherals: embassy_nrf::Peripherals) {
-    let peripherals = embassy_microbit::Peripherals::new(peripherals, &spawner).unwrap();
+async fn main(spawner: Spawner, peripherals: RawPeripherals) {
+    let peripherals = Peripherals::new(peripherals, &spawner).unwrap();
 
     let mut display = peripherals.display;
 

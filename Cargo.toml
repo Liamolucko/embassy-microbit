@@ -33,3 +33,6 @@ defmt-error = []
 
 [profile.release]
 debug = 2 # defmt needs debug info to show line numbers
+
+[dev-dependencies]
+libm = "0.2.1"

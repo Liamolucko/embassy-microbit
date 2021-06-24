@@ -8,14 +8,11 @@ extern crate defmt_rtt;
 extern crate panic_probe;
 
 use embassy::executor::Spawner;
-use embassy_microbit::Peripherals;
-use embassy_microbit::RawPeripherals;
+use embassy_nrf::Peripherals;
 
 #[embassy::main]
-async fn main(spawner: Spawner, peripherals: RawPeripherals) {
-    let peripherals = Peripherals::new(peripherals, &spawner);
-
-    let mut display = peripherals.display;
+async fn main(spawner: Spawner, peripherals: Peripherals) {
+    let mut display = embassy_microbit::display!(peripherals, &spawner);
 
     display.scroll("Hello, World!").await;
 }

@@ -11,26 +11,26 @@ use embassy::executor::Spawner;
 use embassy::time::Duration;
 use embassy::time::Timer;
 use embassy_microbit::display::Image;
-use embassy_microbit::Peripherals;
-use embassy_microbit::RawPeripherals;
+use embassy_nrf::Peripherals;
 
 #[embassy::main]
-async fn main(spawner: Spawner, peripherals: RawPeripherals) {
-    let peripherals = Peripherals::new(peripherals, &spawner);
-    let mut display = peripherals.display;
+async fn main(spawner: Spawner, peripherals: Peripherals) {
+    let mut display = embassy_microbit::display!(peripherals, &spawner);
+    let button_a = embassy_microbit::button_a!(peripherals, &spawner);
+    let button_b = embassy_microbit::button_b!(peripherals, &spawner);
 
     loop {
         let mut image = Image::BLANK;
 
-        if peripherals.button_a.is_pressed() {
+        if button_a.is_pressed() {
             image[1][1] = 255;
         }
 
-        if peripherals.button_b.is_pressed() {
+        if button_b.is_pressed() {
             image[1][3] = 255;
         }
 
-        if peripherals.button_a.is_pressed() && peripherals.button_b.is_pressed() {
+        if button_a.is_pressed() && button_b.is_pressed() {
             image[3][0] = 255;
             image[3][4] = 255;
             image[4][1] = 255;

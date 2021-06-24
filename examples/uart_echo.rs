@@ -10,16 +10,15 @@ extern crate panic_probe;
 use embassy::executor::Spawner;
 use embassy::traits::uart::Read;
 use embassy::traits::uart::Write;
-use embassy_microbit::Peripherals;
-use embassy_microbit::RawPeripherals;
+use embassy_nrf::Peripherals;
 
 #[embassy::main]
-async fn main(spawner: Spawner, peripherals: RawPeripherals) {
-    let mut peripherals = Peripherals::new(peripherals, &spawner);
+async fn main(_spawner: Spawner, peripherals: Peripherals) {
+    let mut uart = embassy_microbit::serial!(peripherals);
 
     let mut buf = [0];
     loop {
-        peripherals.uart.read(&mut buf).await.unwrap();
-        peripherals.uart.write(&buf).await.unwrap();
+        uart.read(&mut buf).await.unwrap();
+        uart.write(&buf).await.unwrap();
     }
 }

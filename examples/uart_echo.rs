@@ -15,7 +15,7 @@ use embassy_microbit::RawPeripherals;
 
 #[embassy::main]
 async fn main(spawner: Spawner, peripherals: RawPeripherals) {
-    let mut peripherals = Peripherals::new(peripherals, &spawner).unwrap();
+    let mut peripherals = Peripherals::new(peripherals, &spawner);
 
     let mut buf = [0];
     loop {

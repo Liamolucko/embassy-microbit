@@ -2,44 +2,45 @@ use core::ops::Deref;
 use core::ops::DerefMut;
 
 use defmt::Format;
-use embassy::executor::SpawnError;
 use embassy::executor::Spawner;
 use embassy::task;
 use embassy::time::Duration;
 use embassy::time::Timer;
+use embassy::util::Signal;
 use embassy_nrf::gpio;
 use embassy_nrf::gpio::AnyPin;
 use embassy_nrf::gpio::Level;
 use embassy_nrf::gpio::OutputDrive;
 use embassy_nrf::gpio::Pin;
-use embassy_nrf::peripherals::P0_11;
-use embassy_nrf::peripherals::P0_15;
-use embassy_nrf::peripherals::P0_19;
-use embassy_nrf::peripherals::P0_21;
-use embassy_nrf::peripherals::P0_22;
-use embassy_nrf::peripherals::P0_24;
-use embassy_nrf::peripherals::P0_28;
-use embassy_nrf::peripherals::P0_30;
-use embassy_nrf::peripherals::P0_31;
-use embassy_nrf::peripherals::P1_05;
 use embedded_hal::digital::v2::OutputPin;
+
+use crate::pins::Col1;
+use crate::pins::Col2;
+use crate::pins::Col3;
+use crate::pins::Col4;
+use crate::pins::Col5;
+use crate::pins::Row1;
+use crate::pins::Row2;
+use crate::pins::Row3;
+use crate::pins::Row4;
+use crate::pins::Row5;
 
 const SCROLL_DELAY: Duration = Duration::from_millis(150);
 
 pub struct Pins {
-    pub row1: P0_21,
-    pub row2: P0_22,
-    pub row3: P0_15,
-    pub row4: P0_24,
-    pub row5: P0_19,
-    pub col1: P0_28,
-    pub col2: P0_11,
-    pub col3: P0_31,
-    pub col4: P1_05,
-    pub col5: P0_30,
+    pub row1: Row1,
+    pub row2: Row2,
+    pub row3: Row3,
+    pub row4: Row4,
+    pub row5: Row5,
+    pub col1: Col1,
+    pub col2: Col2,
+    pub col3: Col3,
+    pub col4: Col4,
+    pub col5: Col5,
 }
 
-#[derive(Clone, Debug, Format)]
+#[derive(Clone, Debug, Format, PartialEq, Eq)]
 pub struct Image(pub [[u8; 5]; 5]);
 
 impl Deref for Image {
@@ -202,9 +203,8 @@ impl From<char> for Image {
     }
 }
 
-// TODO: not sure if this is safe with interrupts and such
-// Because `Display` can only be created with ownership of the correct pins, two `Display`s treading on each other's feet shouldn't be a concern.
-static mut IMAGE: Option<Image> = None;
+/// A signal is send when the image is modified.
+static IMAGE: Signal<Image> = Signal::new();
 
 #[task]
 /// `IMAGE` is set to `None` when the `Display` is dropped, which will cause this to return.
@@ -213,8 +213,15 @@ async fn render(
     mut rows: [gpio::Output<'static, AnyPin>; 5],
     mut cols: [gpio::Output<'static, AnyPin>; 5],
 ) {
-    // Clone the image so it doesn't change whilst rendering it.
-    while let Some(image) = unsafe { IMAGE.clone() } {
+    let mut image = Image::BLANK;
+
+    loop {
+        // Check if a new image has been sent, or wait for a new one if the current image is blank.
+        // If the image is blank, there's nothing to render, so just wait until the image is changed to something else.
+        while IMAGE.signaled() || image == Image::BLANK {
+            image = IMAGE.wait().await;
+        }
+
         for (row_pin, row) in rows.iter_mut().zip(image.0) {
             // How long we've already waited for
             let mut time_waited = Duration::from_secs(0);
@@ -270,35 +277,34 @@ pub struct Display(());
 
 impl Display {
     /// Spawns a task to drive the display and returns a handle to set the display's image.
-    pub fn new(pins: Pins, spawner: &Spawner) -> Result<Self, SpawnError> {
-        unsafe {
-            IMAGE = Some(Image::BLANK);
-        }
-
+    pub fn new(pins: Pins, spawner: &Spawner) -> Self {
         // TODO: figure out a way to implement a `take` method which gives the pins back
         // I think it's impossible right now (safely) because there's no `gpio::Output::take`.
-        spawner.spawn(render(
-            [
-                gpio::Output::new(pins.row1.degrade(), Level::Low, OutputDrive::Standard),
-                gpio::Output::new(pins.row2.degrade(), Level::Low, OutputDrive::Standard),
-                gpio::Output::new(pins.row3.degrade(), Level::Low, OutputDrive::Standard),
-                gpio::Output::new(pins.row4.degrade(), Level::Low, OutputDrive::Standard),
-                gpio::Output::new(pins.row5.degrade(), Level::Low, OutputDrive::Standard),
-            ],
-            [
-                gpio::Output::new(pins.col1.degrade(), Level::High, OutputDrive::Standard),
-                gpio::Output::new(pins.col2.degrade(), Level::High, OutputDrive::Standard),
-                gpio::Output::new(pins.col3.degrade(), Level::High, OutputDrive::Standard),
-                gpio::Output::new(pins.col4.degrade(), Level::High, OutputDrive::Standard),
-                gpio::Output::new(pins.col5.degrade(), Level::High, OutputDrive::Standard),
-            ],
-        ))?;
+        spawner
+            .spawn(render(
+                [
+                    gpio::Output::new(pins.row1.degrade(), Level::Low, OutputDrive::Standard),
+                    gpio::Output::new(pins.row2.degrade(), Level::Low, OutputDrive::Standard),
+                    gpio::Output::new(pins.row3.degrade(), Level::Low, OutputDrive::Standard),
+                    gpio::Output::new(pins.row4.degrade(), Level::Low, OutputDrive::Standard),
+                    gpio::Output::new(pins.row5.degrade(), Level::Low, OutputDrive::Standard),
+                ],
+                [
+                    gpio::Output::new(pins.col1.degrade(), Level::High, OutputDrive::Standard),
+                    gpio::Output::new(pins.col2.degrade(), Level::High, OutputDrive::Standard),
+                    gpio::Output::new(pins.col3.degrade(), Level::High, OutputDrive::Standard),
+                    gpio::Output::new(pins.col4.degrade(), Level::High, OutputDrive::Standard),
+                    gpio::Output::new(pins.col5.degrade(), Level::High, OutputDrive::Standard),
+                ],
+            ))
+            // It shouldn't be possible for this task to already be spawned, since only one instance of all these pins can be created.
+            .unwrap();
 
-        Ok(Self(()))
+        Self(())
     }
 
     pub fn show(&mut self, image: Image) {
-        unsafe { IMAGE = Some(image) }
+        IMAGE.signal(image)
     }
 
     pub async fn scroll(&mut self, text: &str) {
@@ -343,7 +349,7 @@ impl Display {
 
 impl Drop for Display {
     fn drop(&mut self) {
-        // This will trigger the task to stop running.
-        unsafe { IMAGE = None }
+        // The rendering task does nothing when it has a blank image.
+        IMAGE.signal(Image::BLANK)
     }
 }

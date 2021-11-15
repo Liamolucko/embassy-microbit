@@ -1,4 +1,4 @@
 [toolchain]
 # We need nightly for a bunch of unstable features embassy uses.
-channel = "nightly"
+channel = "nightly-2021-10-16"
 targets = ["thumbv6m-none-eabi", "thumbv7em-none-eabihf"]

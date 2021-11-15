@@ -5,22 +5,22 @@ authors = ["Liam Murphy <liampm32@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-cortex-m-rt = "0.6.13"
-critical-section = "0.2.1"
-defmt = "0.2.0"
-defmt-rtt = "0.2.0"
-panic-probe = { version = "0.2.0", features = ["print-defmt"] }
-embedded-hal = "0.2.4"
+cortex-m-rt = "0.7.0"
+critical-section = "0.2.5"
+defmt = "0.3.0"
+defmt-rtt = "0.3.0"
+panic-probe = { version = "0.3.0", features = ["print-defmt"] }
+embedded-hal = "0.2.6"
 once_cell = { version = "1.8.0", default-features = false }
 
 [dependencies.embassy]
 git = "https://github.com/embassy-rs/embassy.git"
-rev = "927be5010926f5ce1f81bd2cec75b1e8883be377"
+rev = "4e0a0f27febfb00c9b4ec42275ac6b83c98436ea"
 
 [dependencies.embassy-nrf]
 git = "https://github.com/embassy-rs/embassy.git"
-rev = "927be5010926f5ce1f81bd2cec75b1e8883be377"
-features = ["nrf52833"]
+rev = "4e0a0f27febfb00c9b4ec42275ac6b83c98436ea"
+features = ["nrf52833", "time-driver-rtc1"]
 
 [features]
 # set logging levels here
@@ -34,8 +34,7 @@ defmt-warn = []
 defmt-error = []
 
 [profile.release]
-debug = true # defmt needs debug info to show line numbers
-lto = true
+debug = 2 # defmt needs debug info to show line numbers
 
 [dev-dependencies]
 libm = "0.2.1"

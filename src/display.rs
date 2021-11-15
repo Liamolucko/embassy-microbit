@@ -6,7 +6,7 @@ use embassy::executor::Spawner;
 use embassy::task;
 use embassy::time::Duration;
 use embassy::time::Timer;
-use embassy::util::Signal;
+use embassy::channel::signal::Signal;
 use embassy_nrf::gpio;
 use embassy_nrf::gpio::AnyPin;
 use embassy_nrf::gpio::Level;

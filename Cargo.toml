@@ -2,7 +2,7 @@
 name = "embassy-microbit"
 version = "0.1.0"
 authors = ["Liam Murphy <liampm32@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 cortex-m-rt = "0.7.0"

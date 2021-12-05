@@ -1,11 +1,11 @@
 use core::sync::atomic::AtomicU32;
 use core::sync::atomic::Ordering;
 
+use embassy::blocking_mutex::CriticalSectionMutex;
 use embassy::executor::Spawner;
 use embassy::task;
 use embassy::time::Duration;
 use embassy::time::Timer;
-use embassy::blocking_mutex::CriticalSectionMutex;
 use embassy_nrf::gpio;
 use embassy_nrf::gpio::Pin;
 use embassy_nrf::gpio::Pull;

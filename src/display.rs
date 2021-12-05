@@ -2,11 +2,11 @@ use core::ops::Deref;
 use core::ops::DerefMut;
 
 use defmt::Format;
+use embassy::channel::signal::Signal;
 use embassy::executor::Spawner;
 use embassy::task;
 use embassy::time::Duration;
 use embassy::time::Timer;
-use embassy::channel::signal::Signal;
 use embassy_nrf::gpio;
 use embassy_nrf::gpio::AnyPin;
 use embassy_nrf::gpio::Level;

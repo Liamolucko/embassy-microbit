@@ -22,17 +22,6 @@ git = "https://github.com/embassy-rs/embassy.git"
 rev = "4e0a0f27febfb00c9b4ec42275ac6b83c98436ea"
 features = ["nrf52833", "time-driver-rtc1"]
 
-[features]
-# set logging levels here
-default = ["defmt-default"]
-# do NOT modify these features
-defmt-default = []
-defmt-trace = []
-defmt-debug = []
-defmt-info = []
-defmt-warn = []
-defmt-error = []
-
 [profile.release]
 debug = 2 # defmt needs debug info to show line numbers
 

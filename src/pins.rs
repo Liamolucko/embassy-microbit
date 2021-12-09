@@ -46,9 +46,9 @@ macro_rules! pin {
         macro_rules! $lower_name {
             ($peripherals:ident) => {
                 $peripherals.$periph
-            }
+            };
         }
-    }
+    };
 }
 
 pin!(pin0, Pin0 = P0_02);

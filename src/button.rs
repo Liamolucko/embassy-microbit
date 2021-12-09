@@ -91,7 +91,7 @@ impl Button<BtnA> {
         critical_section::with(|cs| {
             A_INPUT
                 .borrow(cs)
-                .set(gpio::Input::new(pin, Pull::None))
+                .set(gpio::Input::new(pin, Pull::None)) // The buttons already have pullup resistors, so we don't need any.
                 .map_err(|_| ()) // gpio::Input doesn't impl `Debug`
                 .expect("Button A input already set")
         });
@@ -112,7 +112,7 @@ impl Button<BtnB> {
         critical_section::with(|cs| {
             B_INPUT
                 .borrow(cs)
-                .set(gpio::Input::new(pin, Pull::None))
+                .set(gpio::Input::new(pin, Pull::None)) // The buttons already have pullup resistors, so we don't need any.
                 .map_err(|_| ()) // gpio::Input doesn't impl `Debug`
                 .expect("Button B input already set")
         });

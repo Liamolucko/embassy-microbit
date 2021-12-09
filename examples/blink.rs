@@ -7,19 +7,22 @@
 extern crate defmt_rtt;
 extern crate panic_probe;
 
-
 use embassy::executor::Spawner;
 use embassy::time::Duration;
 use embassy::time::Timer;
-use embassy_nrf::Peripherals;
 use embassy_nrf::gpio;
 use embassy_nrf::gpio::Level;
 use embassy_nrf::gpio::OutputDrive;
+use embassy_nrf::Peripherals;
 use embedded_hal::digital::v2::OutputPin;
 
 #[embassy::main]
 async fn main(_spawner: Spawner, peripherals: Peripherals) {
-    let mut pin = gpio::Output::new(embassy_microbit::pin0!(peripherals), Level::Low, OutputDrive::Standard);
+    let mut pin = gpio::Output::new(
+        embassy_microbit::pin0!(peripherals),
+        Level::Low,
+        OutputDrive::Standard,
+    );
 
     loop {
         Timer::after(Duration::from_millis(500)).await;

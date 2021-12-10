@@ -1,6 +1,6 @@
-use core::sync::atomic::AtomicU32;
 use core::sync::atomic::Ordering;
 
+use atomic_polyfill::AtomicU32;
 use embassy::blocking_mutex::CriticalSectionMutex;
 use embassy::executor::Spawner;
 use embassy::task;

@@ -71,3 +71,6 @@ pin!(pin16, Pin16 = P1_02);
 // There are no pins 17-18 because there are 3V pins where they would otherwise be.
 pin!(pin19, Pin19 = P0_26);
 pin!(pin20, Pin20 = P1_00);
+
+pin!(uart_rx, UartRx = P1_08);
+pin!(uart_tx, UartTx = P0_06);

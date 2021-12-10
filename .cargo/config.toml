@@ -1,5 +1,13 @@
-[target.'cfg(all(target_arch = "arm", target_os = "none"))']
-runner = "probe-run --chip nRF52833_xxAA"
+[target.thumbv6m-none-eabi]
+runner = "probe-run --chip nRF51822_xxAA" # micro:bit v1
+
+[target.thumbv7em-none-eabihf]
+runner = "probe-run --chip nRF52833_xxAA" # micro:bit v2
+
+[build]
+target = "thumbv6m-none-eabi"    # micro:bit v1
+# target = "thumbv7em-none-eabihf" # micro:bit v2
+
 rustflags = [
   "-C", "linker=flip-link",
   "-C", "link-arg=-Tlink.x",
@@ -8,7 +16,3 @@ rustflags = [
   # See https://github.com/rust-embedded/cortex-m-quickstart/pull/95
   "-C", "link-arg=--nmagic",
 ]
-
-[build]
-# target = "thumbv6m-none-eabi"    # micro:bit v1 (also compatible with the v2 but less efficient)
-target = "thumbv7em-none-eabihf" # micro:bit v2

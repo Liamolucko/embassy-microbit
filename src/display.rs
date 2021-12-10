@@ -19,10 +19,20 @@ use crate::pins::Col2;
 use crate::pins::Col3;
 use crate::pins::Col4;
 use crate::pins::Col5;
+#[cfg(not(v2))]
+use crate::pins::Col6;
+#[cfg(not(v2))]
+use crate::pins::Col7;
+#[cfg(not(v2))]
+use crate::pins::Col8;
+#[cfg(not(v2))]
+use crate::pins::Col9;
 use crate::pins::Row1;
 use crate::pins::Row2;
 use crate::pins::Row3;
+#[cfg(v2)]
 use crate::pins::Row4;
+#[cfg(v2)]
 use crate::pins::Row5;
 
 const SCROLL_DELAY: Duration = Duration::from_millis(150);
@@ -31,13 +41,23 @@ pub struct Pins {
     pub row1: Row1,
     pub row2: Row2,
     pub row3: Row3,
+    #[cfg(v2)]
     pub row4: Row4,
+    #[cfg(v2)]
     pub row5: Row5,
     pub col1: Col1,
     pub col2: Col2,
     pub col3: Col3,
     pub col4: Col4,
     pub col5: Col5,
+    #[cfg(not(v2))]
+    pub col6: Col6,
+    #[cfg(not(v2))]
+    pub col7: Col7,
+    #[cfg(not(v2))]
+    pub col8: Col8,
+    #[cfg(not(v2))]
+    pub col9: Col9,
 }
 
 #[derive(Clone, Debug, Format, PartialEq, Eq)]

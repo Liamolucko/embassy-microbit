@@ -2,12 +2,15 @@
 #![feature(type_alias_impl_trait)]
 
 pub mod button;
+#[cfg(v2)]
 pub mod display;
 pub mod pins;
 
 pub use button::Button;
+#[cfg(v2)]
 pub use display::Display;
 
+#[cfg(v2)]
 #[macro_export]
 macro_rules! display {
     ($peripherals:ident, $spawner:expr) => {{
@@ -28,6 +31,15 @@ macro_rules! display {
     }};
 }
 
+#[cfg(not(v2))]
+#[macro_export]
+macro_rules! button_a {
+    ($peripherals:expr, $spawner:expr) => {
+        $crate::Button::new_a($peripherals.P0_17, $spawner)
+    };
+}
+
+#[cfg(v2)]
 #[macro_export]
 macro_rules! button_a {
     ($peripherals:expr, $spawner:expr) => {
@@ -35,6 +47,15 @@ macro_rules! button_a {
     };
 }
 
+#[cfg(not(v2))]
+#[macro_export]
+macro_rules! button_b {
+    ($peripherals:expr, $spawner:expr) => {
+        $crate::Button::new_b($peripherals.P0_26, $spawner)
+    };
+}
+
+#[cfg(v2)]
 #[macro_export]
 macro_rules! button_b {
     ($peripherals:expr, $spawner:expr) => {
@@ -42,21 +63,50 @@ macro_rules! button_b {
     };
 }
 
+#[cfg(not(v2))]
 #[macro_export]
 macro_rules! serial {
     ($peripherals:ident) => {
         unsafe {
             use ::embassy_nrf::gpio::NoPin;
             use ::embassy_nrf::interrupt;
-            use ::embassy_nrf::uarte;
-            use ::embassy_nrf::uarte::Baudrate;
-            use ::embassy_nrf::uarte::Parity;
-            use ::embassy_nrf::uarte::Uarte;
+            use ::embassy_nrf::uart;
+            use ::embassy_nrf::uart::Baudrate;
+            use ::embassy_nrf::uart::Parity;
+            use ::embassy_nrf::uart::Uart;
 
-            let mut config = uarte::Config::default();
+            let mut config = uart::Config::default();
             config.baudrate = Baudrate::BAUD115200;
             config.parity = Parity::EXCLUDED;
-            Uarte::new(
+            Uart::new(
+                $peripherals.UART0,
+                interrupt::take!(UART0),
+                $peripherals.P0_25,
+                $peripherals.P0_24,
+                NoPin,
+                NoPin,
+                config,
+            )
+        }
+    };
+}
+
+#[cfg(v2)]
+#[macro_export]
+macro_rules! serial {
+    ($peripherals:ident) => {
+        unsafe {
+            use ::embassy_nrf::gpio::NoPin;
+            use ::embassy_nrf::interrupt;
+            use ::embassy_nrf::uart;
+            use ::embassy_nrf::uart::Baudrate;
+            use ::embassy_nrf::uart::Parity;
+            use ::embassy_nrf::uart::Uart;
+
+            let mut config = uart::Config::default();
+            config.baudrate = Baudrate::BAUD115200;
+            config.parity = Parity::EXCLUDED;
+            Uart::new(
                 $peripherals.UARTE0,
                 interrupt::take!(UARTE0_UART0),
                 $peripherals.P1_08,

@@ -4,6 +4,7 @@ use embassy_nrf::peripherals::P0_01;
 use embassy_nrf::peripherals::P0_02;
 use embassy_nrf::peripherals::P0_03;
 use embassy_nrf::peripherals::P0_04;
+use embassy_nrf::peripherals::P0_06;
 use embassy_nrf::peripherals::P0_09;
 use embassy_nrf::peripherals::P0_10;
 use embassy_nrf::peripherals::P0_11;
@@ -24,6 +25,7 @@ use embassy_nrf::peripherals::P0_31;
 use embassy_nrf::peripherals::P1_00;
 use embassy_nrf::peripherals::P1_02;
 use embassy_nrf::peripherals::P1_05;
+use embassy_nrf::peripherals::P1_08;
 
 pub type Row1 = P0_21;
 pub type Row2 = P0_22;

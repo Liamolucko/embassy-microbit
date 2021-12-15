@@ -9,8 +9,8 @@ use embassy::executor::Spawner;
 use embassy_nrf::Peripherals;
 
 #[embassy::main]
-async fn main(spawner: Spawner, peripherals: Peripherals) {
-    let mut display = embassy_microbit::display!(peripherals, &spawner);
+async fn main(_spawner: Spawner, peripherals: Peripherals) {
+    let mut display = embassy_microbit::display!(peripherals);
 
     display.scroll("Hello, World!").await;
 }

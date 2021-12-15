@@ -2,18 +2,43 @@
 #![feature(type_alias_impl_trait)]
 
 pub mod button;
-#[cfg(v2)]
 pub mod display;
 pub mod pins;
 
 pub use button::Button;
-#[cfg(v2)]
 pub use display::Display;
+
+#[cfg(not(v2))]
+#[macro_export]
+macro_rules! display {
+    ($peripherals:ident) => {{
+        use ::embassy_nrf::interrupt;
+
+        let pins = $crate::display::Pins {
+            row1: $peripherals.P0_13,
+            row2: $peripherals.P0_14,
+            row3: $peripherals.P0_15,
+            col1: $peripherals.P0_04,
+            col2: $peripherals.P0_05,
+            col3: $peripherals.P0_06,
+            col4: $peripherals.P0_07,
+            col5: $peripherals.P0_08,
+            col6: $peripherals.P0_09,
+            col7: $peripherals.P0_10,
+            col8: $peripherals.P0_11,
+            col9: $peripherals.P0_12,
+        };
+
+        $crate::Display::new(pins, $peripherals.TIMER1, interrupt::take!(TIMER1))
+    }};
+}
 
 #[cfg(v2)]
 #[macro_export]
 macro_rules! display {
-    ($peripherals:ident, $spawner:expr) => {{
+    ($peripherals:ident) => {{
+        use ::embassy_nrf::interrupt;
+
         let pins = $crate::display::Pins {
             row1: $peripherals.P0_21,
             row2: $peripherals.P0_22,
@@ -27,7 +52,7 @@ macro_rules! display {
             col5: $peripherals.P0_30,
         };
 
-        $crate::Display::new(pins, $spawner)
+        $crate::Display::new(pins, $peripherals.TIMER1, interrupt::take!(TIMER1))
     }};
 }
 

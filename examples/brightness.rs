@@ -12,8 +12,8 @@ use embassy_microbit::display::Image;
 use embassy_nrf::Peripherals;
 
 #[embassy::main]
-async fn main(spawner: Spawner, peripherals: Peripherals) {
-    let mut display = embassy_microbit::display!(peripherals, &spawner);
+async fn main(_spawner: Spawner, peripherals: Peripherals) {
+    let mut display = embassy_microbit::display!(peripherals);
 
     let image = Image([
         [10, 20, 30, 40, 50],

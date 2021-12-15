@@ -2,16 +2,22 @@ use core::ops::Deref;
 use core::ops::DerefMut;
 
 use defmt::Format;
-use embassy::channel::signal::Signal;
-use embassy::executor::Spawner;
-use embassy::task;
+use embassy::interrupt::Interrupt;
+use embassy::interrupt::InterruptExt;
 use embassy::time::Duration;
 use embassy::time::Timer;
+use embassy::util::Forever;
+use embassy_hal_common::peripheral::PeripheralMutex;
+use embassy_hal_common::peripheral::PeripheralState;
+use embassy_hal_common::peripheral::StateStorage;
 use embassy_nrf::gpio;
 use embassy_nrf::gpio::AnyPin;
 use embassy_nrf::gpio::Level;
 use embassy_nrf::gpio::OutputDrive;
 use embassy_nrf::gpio::Pin;
+use embassy_nrf::interrupt;
+use embassy_nrf::peripherals::TIMER1;
+use embassy_nrf::timer::Timer as HwTimer;
 use embedded_hal::digital::v2::OutputPin;
 
 use crate::pins::Col1;
@@ -36,6 +42,22 @@ use crate::pins::Row4;
 use crate::pins::Row5;
 
 const SCROLL_DELAY: Duration = Duration::from_millis(150);
+
+const REFRESH_RATE: u32 = 60;
+// The timer's frequency is 1MHz, so 1s is 1_000_000 ticks.
+const TICKS_PER_ROW: u16 = (1_000_000 / (REFRESH_RATE * HW_ROWS as u32)) as u16;
+// Base this on the smaller value to make sure it's a clean multiple.
+const TICKS_PER_FRAME: u16 = TICKS_PER_ROW * HW_ROWS as u16;
+
+#[cfg(not(v2))]
+const HW_ROWS: usize = 3;
+#[cfg(not(v2))]
+const HW_COLS: usize = 9;
+
+#[cfg(v2)]
+const HW_ROWS: usize = 5;
+#[cfg(v2)]
+const HW_COLS: usize = 5;
 
 pub struct Pins {
     pub row1: Row1,
@@ -116,6 +138,43 @@ impl Image {
             unpack(data[3]),
             unpack(data[4]),
         ])
+    }
+
+    fn hw_rows(&self) -> [[u8; HW_COLS]; HW_ROWS] {
+        #[cfg(not(v2))]
+        return [
+            [
+                self[0][0], self[0][2], self[0][4], self[3][4], self[3][3], self[3][2], self[3][1],
+                self[3][0], self[2][1],
+            ],
+            [
+                self[2][4], self[2][0], self[2][2], self[0][1], self[0][3], self[4][3], self[4][1],
+                0, 0,
+            ],
+            [
+                self[4][2], self[4][4], self[4][0], self[1][0], self[1][1], self[1][2], self[1][3],
+                self[1][4], self[2][3],
+            ],
+        ];
+        #[cfg(v2)]
+        self.0
+    }
+
+    fn steps(&self) -> [[(u16, usize); HW_COLS]; HW_ROWS] {
+        let hw_rows = self.hw_rows();
+
+        let mut out = [[(0, 0); HW_COLS]; HW_ROWS];
+        for (i, row) in out.iter_mut().enumerate() {
+            for (j, col) in row.iter_mut().enumerate() {
+                *col = (
+                    (TICKS_PER_ROW as u32 * hw_rows[i][j] as u32 / 255) as u16,
+                    j,
+                )
+            }
+
+            row.sort_unstable_by_key(|&(time, _)| time);
+        }
+        out
     }
 }
 
@@ -223,108 +282,184 @@ impl From<char> for Image {
     }
 }
 
-/// A signal is send when the image is modified.
-static IMAGE: Signal<Image> = Signal::new();
+struct DisplayState {
+    next_steps: [[(u16, usize); HW_COLS]; HW_ROWS],
+    steps: [[(u16, usize); HW_COLS]; HW_ROWS],
 
-#[task]
-/// `IMAGE` is set to `None` when the `Display` is dropped, which will cause this to return.
-/// There isn't currently another way to cancel a task.
-async fn render(
-    mut rows: [gpio::Output<'static, AnyPin>; 5],
-    mut cols: [gpio::Output<'static, AnyPin>; 5],
-) {
-    let mut image = Image::BLANK;
+    row: usize,
+    /// The current 'step' of the current row; the nth step is when the nth dimmest column is turned off.
+    step: usize,
 
-    loop {
-        // Check if a new image has been sent, or wait for a new one if the current image is blank.
-        // If the image is blank, there's nothing to render, so just wait until the image is changed to something else.
-        while IMAGE.signaled() || image == Image::BLANK {
-            image = IMAGE.wait().await;
+    row_pins: [gpio::Output<'static, AnyPin>; HW_ROWS],
+    col_pins: [gpio::Output<'static, AnyPin>; HW_COLS],
+
+    timer: HwTimer<'static, TIMER1, u16>,
+}
+
+impl DisplayState {
+    fn time(&mut self) -> u16 {
+        // Don't use a modulus for this so that things don't get messed up
+        // if the timer hits the next row midway through the interrupt.
+        self.timer.cc(2).capture() - self.row as u16 * TICKS_PER_ROW
+    }
+}
+
+impl PeripheralState for DisplayState {
+    type Interrupt = interrupt::TIMER1;
+
+    // This is written to do everything based on the timer's current value, rather then the numbre of times it's triggered.
+    fn on_interrupt(&mut self) {
+        // Clear the events so this interrupt doesn't get repeatedly fired.
+        // TODO: Make a proper binding for this.
+        unsafe {
+            let reg = &*embassy_nrf::pac::TIMER1::ptr();
+            reg.events_compare[0].reset();
+            reg.events_compare[1].reset();
         }
 
-        for (row_pin, row) in rows.iter_mut().zip(image.0) {
-            // How long we've already waited for
-            let mut time_waited = Duration::from_secs(0);
+        let row = self.timer.cc(2).capture() / TICKS_PER_ROW;
+        let row = row as usize;
 
-            // These are infallible, `embedded-hal` just has them return errors in case there's a board out there with fallible pins.
-            row_pin.set_high().unwrap();
+        if row != self.row {
+            // The row has changed; start rendering a new one.
 
-            // Turn the whole row on, except the ones with brightness 0.
-            for (col_pin, brightness) in cols.iter_mut().zip(row) {
-                if brightness > 0 {
+            // Turn off any remaining columns.
+            for pin in &mut self.col_pins {
+                pin.set_high().unwrap();
+            }
+
+            // Disable the previous row's pin.
+            self.row_pins[self.row].set_low().unwrap();
+
+            self.row = row;
+            self.step = 0;
+
+            if self.row == 0 {
+                // Update the image we're displaying at the start of each frame.
+                self.steps = self.next_steps;
+            }
+
+            self.row_pins[self.row].set_high().unwrap();
+
+            // Turn on all the pins which aren't supposed to be completely off.
+            for (time, col) in self.steps[self.row] {
+                if time > 0 {
                     // The column pins are active low.
-                    col_pin.set_low().unwrap();
+                    self.col_pins[col].set_low().unwrap();
                 } else {
-                    col_pin.set_high().unwrap();
+                    // We don't need to step through any columns which weren't on to begin with.
+                    self.step += 1;
                 }
             }
+        }
 
-            let mut next_dimmest = 0;
+        let steps = self.steps[self.row];
 
-            while next_dimmest < 255 {
-                // This will find the lowest brighness which is greater than `next_dimmest`, or default to 255.
-                next_dimmest = row.iter().cloned().fold(255, |acc, brightness| {
-                    if brightness > next_dimmest && brightness < acc {
-                        brightness
-                    } else {
-                        acc
-                    }
-                });
+        // Turn off all of the columns whose times have passed.
+        while self.step < HW_COLS && steps[self.step].0 <= self.time() {
+            let (_, col) = steps[self.step];
 
-                // How much longer we have to wait until we have to turn off the next set of LEDs.
-                // TODO: Embassy doesn't have it's RTC clocked high enough for all 255 brightness levels to actually be different;
-                // either use a separate hardware timer or restrict the number of brightness levels.
-                let delay =
-                    (Duration::from_secs(1) * next_dimmest as u32) / (60 * 5 * 255) - time_waited;
-                time_waited += delay;
+            self.col_pins[col].set_high().unwrap();
 
-                Timer::after(delay).await;
+            self.step += 1;
+        }
 
-                // Turn off the correct LEDs
-                for (col_pin, brightness) in cols.iter_mut().zip(row.iter()) {
-                    if *brightness == next_dimmest {
-                        col_pin.set_high().unwrap();
-                    }
-                }
-            }
+        let time = self.steps[self.row]
+            .get(self.step)
+            // Default to `TICKS_PER_ROW` if there are none left, since we then just want to wait until we reach the next row.
+            .map_or(TICKS_PER_ROW, |&(time, _)| time);
 
-            row_pin.set_low().unwrap();
+        self.timer
+            .cc(0)
+            .write(self.row as u16 * TICKS_PER_ROW + time);
+
+        // Start the timer if it isn't already running.
+        self.timer.start();
+
+        if self.timer.cc(2).capture() >= self.timer.cc(0).read()
+            && !unsafe { interrupt::TIMER1::steal() }.is_pending()
+        {
+            // It ticked past between the loop and here, so just trigger this handler again.
+            self.on_interrupt();
         }
     }
 }
 
-pub struct Display(());
+static STATE: Forever<StateStorage<DisplayState>> = Forever::new();
+
+pub struct Display {
+    mutex: PeripheralMutex<'static, DisplayState>,
+}
 
 impl Display {
     /// Spawns a task to drive the display and returns a handle to set the display's image.
-    pub fn new(pins: Pins, spawner: &Spawner) -> Self {
-        // TODO: figure out a way to implement a `take` method which gives the pins back
-        // I think it's impossible right now (safely) because there's no `gpio::Output::take`.
-        spawner
-            .spawn(render(
-                [
-                    gpio::Output::new(pins.row1.degrade(), Level::Low, OutputDrive::Standard),
-                    gpio::Output::new(pins.row2.degrade(), Level::Low, OutputDrive::Standard),
-                    gpio::Output::new(pins.row3.degrade(), Level::Low, OutputDrive::Standard),
-                    gpio::Output::new(pins.row4.degrade(), Level::Low, OutputDrive::Standard),
-                    gpio::Output::new(pins.row5.degrade(), Level::Low, OutputDrive::Standard),
-                ],
-                [
-                    gpio::Output::new(pins.col1.degrade(), Level::High, OutputDrive::Standard),
-                    gpio::Output::new(pins.col2.degrade(), Level::High, OutputDrive::Standard),
-                    gpio::Output::new(pins.col3.degrade(), Level::High, OutputDrive::Standard),
-                    gpio::Output::new(pins.col4.degrade(), Level::High, OutputDrive::Standard),
-                    gpio::Output::new(pins.col5.degrade(), Level::High, OutputDrive::Standard),
-                ],
-            ))
-            // It shouldn't be possible for this task to already be spawned, since only one instance of all these pins can be created.
-            .unwrap();
+    pub fn new(pins: Pins, timer: TIMER1, irq: interrupt::TIMER1) -> Self {
+        let mut state = DisplayState {
+            timer: HwTimer::new(timer),
 
-        Self(())
+            next_steps: Image::BLANK.steps(),
+            steps: Image::BLANK.steps(),
+            // Initialize the state such that it'll immediately reset itself.
+            row: HW_ROWS - 1,
+            step: HW_COLS,
+
+            #[cfg(v2)]
+            row_pins: [
+                gpio::Output::new(pins.row1.degrade(), Level::Low, OutputDrive::Standard),
+                gpio::Output::new(pins.row2.degrade(), Level::Low, OutputDrive::Standard),
+                gpio::Output::new(pins.row3.degrade(), Level::Low, OutputDrive::Standard),
+                gpio::Output::new(pins.row4.degrade(), Level::Low, OutputDrive::Standard),
+                gpio::Output::new(pins.row5.degrade(), Level::Low, OutputDrive::Standard),
+            ],
+            #[cfg(not(v2))]
+            row_pins: [
+                gpio::Output::new(pins.row1.degrade(), Level::Low, OutputDrive::Standard),
+                gpio::Output::new(pins.row2.degrade(), Level::Low, OutputDrive::Standard),
+                gpio::Output::new(pins.row3.degrade(), Level::Low, OutputDrive::Standard),
+            ],
+
+            #[cfg(v2)]
+            col_pins: [
+                gpio::Output::new(pins.col1.degrade(), Level::High, OutputDrive::Standard),
+                gpio::Output::new(pins.col2.degrade(), Level::High, OutputDrive::Standard),
+                gpio::Output::new(pins.col3.degrade(), Level::High, OutputDrive::Standard),
+                gpio::Output::new(pins.col4.degrade(), Level::High, OutputDrive::Standard),
+                gpio::Output::new(pins.col5.degrade(), Level::High, OutputDrive::Standard),
+            ],
+            #[cfg(not(v2))]
+            col_pins: [
+                gpio::Output::new(pins.col1.degrade(), Level::High, OutputDrive::Standard),
+                gpio::Output::new(pins.col2.degrade(), Level::High, OutputDrive::Standard),
+                gpio::Output::new(pins.col3.degrade(), Level::High, OutputDrive::Standard),
+                gpio::Output::new(pins.col4.degrade(), Level::High, OutputDrive::Standard),
+                gpio::Output::new(pins.col5.degrade(), Level::High, OutputDrive::Standard),
+                gpio::Output::new(pins.col6.degrade(), Level::High, OutputDrive::Standard),
+                gpio::Output::new(pins.col7.degrade(), Level::High, OutputDrive::Standard),
+                gpio::Output::new(pins.col8.degrade(), Level::High, OutputDrive::Standard),
+                gpio::Output::new(pins.col9.degrade(), Level::High, OutputDrive::Standard),
+            ],
+        };
+
+        // Make the timer reset itself at the end of each frame.
+        state.timer.cc(1).write(TICKS_PER_FRAME);
+        state.timer.cc(1).short_compare_clear();
+        // Enable an interrupt when CC 0 or 1's value is reached.
+        // TODO: Make a proper binding for this.
+        unsafe {
+            let reg = &*embassy_nrf::pac::TIMER1::ptr();
+            reg.intenset
+                .write(|w| w.compare0().set_bit().compare1().set_bit());
+        }
+
+        irq.pend();
+
+        let mutex = PeripheralMutex::new(irq, STATE.put(StateStorage::new()), || state);
+
+        Self { mutex }
     }
 
     pub fn show(&mut self, image: Image) {
-        IMAGE.signal(image)
+        self.mutex.with(|state| state.next_steps = image.steps());
     }
 
     pub async fn scroll(&mut self, text: &str) {
@@ -364,12 +499,5 @@ impl Display {
             self.show(image.clone());
             Timer::after(SCROLL_DELAY).await;
         }
-    }
-}
-
-impl Drop for Display {
-    fn drop(&mut self) {
-        // The rendering task does nothing when it has a blank image.
-        IMAGE.signal(Image::BLANK)
     }
 }

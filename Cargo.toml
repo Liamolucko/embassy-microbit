@@ -18,15 +18,19 @@ panic-probe = { version = "0.3.0", features = ["print-defmt"] }
 git = "https://github.com/Liamolucko/embassy.git"
 branch = "nrf51-2"
 
+[dependencies.embassy-hal-common]
+git = "https://github.com/Liamolucko/embassy.git"
+branch = "nrf51-2"
+
 [target.thumbv6m-none-eabi.dependencies.embassy-nrf]
 git = "https://github.com/Liamolucko/embassy.git"
 branch = "nrf51-2"
-features = ["time-driver-rtc1", "nrf51"]
+features = ["time-driver-rtc1", "nrf51", "unstable-pac"]
 
 [target.thumbv7em-none-eabihf.dependencies.embassy-nrf]
 git = "https://github.com/Liamolucko/embassy.git"
 branch = "nrf51-2"
-features = ["time-driver-rtc1", "nrf52833"]
+features = ["time-driver-rtc1", "nrf52833", "unstable-pac"]
 
 [profile.release]
 debug = 2 # defmt needs debug info to show line numbers

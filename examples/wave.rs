@@ -10,11 +10,15 @@ use embassy::time::{Duration, Instant, Timer};
 use embassy_microbit::display::Image;
 use embassy_nrf::Peripherals;
 
+const FRAME_RATE: u64 = 60;
+const FRAME_PERIOD: Duration = Duration::from_micros(1_000_000 / FRAME_RATE);
+
 #[embassy::main]
-async fn main(spawner: Spawner, peripherals: Peripherals) {
-    let mut display = embassy_microbit::display!(peripherals, &spawner);
+async fn main(_spawner: Spawner, peripherals: Peripherals) {
+    let mut display = embassy_microbit::display!(peripherals);
 
     let start = Instant::now();
+    let mut next_frame = start + FRAME_PERIOD;
     loop {
         let elapsed = start.elapsed().as_millis() as f64 / 75.0;
         let mut image = [[0; 5]; 5];
@@ -39,6 +43,8 @@ async fn main(spawner: Spawner, peripherals: Peripherals) {
 
         display.show(Image(image));
 
-        Timer::after(Duration::from_millis(16)).await;
+        Timer::at(next_frame).await;
+
+        next_frame += FRAME_PERIOD;
     }
 }

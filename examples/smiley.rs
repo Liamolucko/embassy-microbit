@@ -13,7 +13,7 @@ use embassy_nrf::Peripherals;
 
 #[embassy::main]
 async fn main(spawner: Spawner, peripherals: Peripherals) {
-    let mut display = embassy_microbit::display!(peripherals, &spawner);
+    let mut display = embassy_microbit::display!(peripherals);
     let button_a = embassy_microbit::button_a!(peripherals, &spawner);
     let button_b = embassy_microbit::button_b!(peripherals, &spawner);
 
